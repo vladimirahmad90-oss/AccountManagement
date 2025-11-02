@@ -9,6 +9,7 @@ import { DatabaseService } from "@/lib/database-service";
  * --------------------------------------------------------------------------------
  * Endpoint untuk mengambil data statistik aktivitas per operator.
  */
+export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     console.log("[API] Fetching operator statistics...");

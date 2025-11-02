@@ -8,6 +8,7 @@ import { DatabaseService } from "@/lib/database-service"; // Impor service saja
 import { Prisma, PlatformType as PrismaPlatformType } from "@prisma/client";
 
 export const runtime = "nodejs"; // Prisma needs Node.js
+export const dynamic = "force-dynamic";
 
 // --- PATCH: Update Akun Berdasarkan ID ---
 export async function PATCH(

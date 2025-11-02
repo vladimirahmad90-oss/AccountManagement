@@ -12,6 +12,7 @@ interface BackupDataPayload {
   users: any[];
 }
 
+export const dynamic = "force-dynamic";
 /**
  * --------------------------------------------------------------------------------
  * 🔹 POST /api/backup/restore

@@ -8,6 +8,7 @@ import { DatabaseService, AccountType } from "@/lib/database-service"; // Impor 
 import { Prisma, PlatformType as PrismaPlatformType } from "@prisma/client";
 
 export const runtime = "nodejs"; // Prisma needs Node.js
+export const dynamic = "force-dynamic";
 
 // Tipe data yang diharapkan dari body request (gunakan tipe Prisma)
 interface AccountInput {

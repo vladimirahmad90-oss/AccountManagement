@@ -14,6 +14,7 @@ import { DatabaseService } from "@/lib/database-service";
  * @body { newPassword?: string } - (Opsional) Password baru untuk akun terkait.
  * @returns { NextResponse } - Pesan sukses atau pesan error.
  */
+export const dynamic = "force-dynamic";
 export async function PATCH(
   request: Request,
   { params }: { params: { reportId: string } }

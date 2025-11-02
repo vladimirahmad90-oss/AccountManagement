@@ -4,6 +4,8 @@ import { NextRequest, NextResponse } from "next/server";
 import { validateUser } from "@/lib/auth-server";
 import jwt from "jsonwebtoken"; // <-- 1. Impor JWT
 
+export const dynamic = "force-dynamic";
+
 export async function POST(req: NextRequest) {
   try {
     // 2. Ambil Kunci Rahasia dari .env

@@ -8,9 +8,8 @@ import {
   AccountType as PrismaAccountType, // <-- Tambahkan ini
 } from "@prisma/client"; // Impor tipe Platform dan AccountType
 
-export const dynamic = "force-dynamic";
-
 export const runtime = "nodejs";
+export const dynamic = "force-dynamic";
 
 /**
  * --------------------------------------------------------------------------------

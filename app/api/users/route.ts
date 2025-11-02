@@ -8,6 +8,7 @@ import {
   deleteUser,
 } from "@/lib/auth-server";
 
+export const dynamic = "force-dynamic";
 // ============================================================
 // 1. GET (Ambil semua user)
 // ============================================================

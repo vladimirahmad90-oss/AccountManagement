@@ -9,6 +9,7 @@ import { DatabaseService } from "@/lib/database-service";
  * --------------------------------------------------------------------------------
  * Endpoint untuk mengambil data statistik customer (total, per tipe, dll).
  */
+export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     console.log("[API] Fetching customer statistics...");

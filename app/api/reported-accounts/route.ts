@@ -9,6 +9,7 @@ import { DatabaseService } from "@/lib/database-service";
  * --------------------------------------------------------------------------------
  * Endpoint untuk mengambil SEMUA laporan akun.
  */
+export const dynamic = "force-dynamic";
 export async function GET(request: Request) {
   try {
     console.log("[API] Fetching all reported accounts...");
