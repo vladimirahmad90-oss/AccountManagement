@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useAccounts } from "@/contexts/account-context";
+import { useAuth } from "@/lib/auth";
 import {
   Popover,
   PopoverContent,
   PopoverTrigger,
 } from "@/components/ui/popover";
-import type { Account } from "@prisma/client"; // Impor tipe Account
+import type { Account } from "@prisma/client";
 
 interface Notification {
   id: string;
@@ -23,133 +24,233 @@ interface Notification {
 }
 
 export default function NotificationSystem() {
-  // Ambil getRemainingDays juga untuk perhitungan sisa hari
   const {
     accounts,
     getAvailableProfileCount,
-    getReportedAccounts,
+    reportedAccounts,
     getRemainingDays,
   } = useAccounts();
+
+  const { user } = useAuth();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [isOpen, setIsOpen] = useState(false);
 
-  // Generate notifications based on system state
+  // State untuk menyimpan ID notifikasi yang sudah dibaca DAN dihapus
+  const [readIds, setReadIds] = useState<Set<string>>(new Set());
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  // 1. Load Read & Dismissed IDs dari LocalStorage saat mount
   useEffect(() => {
-    // Pastikan accounts sudah ter-load sebelum generate notif
-    if (!accounts || accounts.length === 0) {
-      return; // Jangan lakukan apa-apa jika data akun belum siap
+    if (typeof window !== "undefined") {
+      // Load Read Status
+      const storedRead = localStorage.getItem("read_notifications");
+      if (storedRead) {
+        try {
+          setReadIds(new Set(JSON.parse(storedRead)));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      // Load Dismissed Status
+      const storedDismissed = localStorage.getItem("dismissed_notifications");
+      if (storedDismissed) {
+        try {
+          setDismissedIds(new Set(JSON.parse(storedDismissed)));
+        } catch (e) {
+          console.error(e);
+        }
+      }
+
+      setIsInitialized(true);
     }
+  }, []);
 
-    const newNotifications: Notification[] = [];
+  // 2. Generate Notifikasi
+  useEffect(() => {
+    if (!accounts || !user || !isInitialized) return;
 
-    // Check for low stock (tidak berubah)
+    const rawNotifications: Notification[] = [];
+    const now = new Date();
+    const isRead = (id: string) => readIds.has(id);
+
+    // --- A. GLOBAL ALERTS (Low Stock) ---
     const privateStock = getAvailableProfileCount("private");
     const sharingStock = getAvailableProfileCount("sharing");
-    const vipStock = getAvailableProfileCount("vip"); // Cek VIP juga
+    const vipStock = getAvailableProfileCount("vip");
 
     if (privateStock <= 5) {
-      newNotifications.push({
-        id: `low-private-${new Date().getDay()}`, // ID dibuat lebih stabil per hari
+      const id = `low-private-${now.getDate()}`;
+      rawNotifications.push({
+        id,
         type: "warning",
-        title: "Low Private Stock",
-        message: `Hanya ${privateStock} profil private tersisa`,
-        timestamp: new Date().toISOString(),
-        read: false,
+        title: "Stok Private Kritis",
+        message: `Hanya tersisa ${privateStock} profil Private`,
+        timestamp: now.toISOString(),
+        read: isRead(id),
       });
     }
     if (sharingStock <= 10) {
-      newNotifications.push({
-        id: `low-sharing-${new Date().getDay()}`,
+      const id = `low-sharing-${now.getDate()}`;
+      rawNotifications.push({
+        id,
         type: "warning",
-        title: "Low Sharing Stock",
-        message: `Hanya ${sharingStock} profil sharing tersisa`,
-        timestamp: new Date().toISOString(),
-        read: false,
+        title: "Stok Sharing Menipis",
+        message: `Hanya tersisa ${sharingStock} profil Sharing`,
+        timestamp: now.toISOString(),
+        read: isRead(id),
       });
     }
     if (vipStock <= 3) {
-      // Threshold VIP
-      newNotifications.push({
-        id: `low-vip-${new Date().getDay()}`,
+      const id = `low-vip-${now.getDate()}`;
+      rawNotifications.push({
+        id,
         type: "warning",
-        title: "Low VIP Stock",
-        message: `Hanya ${vipStock} profil VIP tersisa`,
-        timestamp: new Date().toISOString(),
-        read: false,
+        title: "Stok VIP Kritis",
+        message: `Hanya tersisa ${vipStock} profil VIP`,
+        timestamp: now.toISOString(),
+        read: isRead(id),
       });
     }
 
-    // --- PERBAIKAN CEK EXPIRED ---
-    // Check for expiring accounts (within 3 days)
-    const expiringAccounts = accounts.filter((account: Account) => {
-      // Beri tipe Account
-      // Gunakan getRemainingDays dari context yang sudah benar (camelCase)
-      const daysLeft = getRemainingDays(account);
-      // Notifikasi jika sisa 1, 2, atau 3 hari (tidak termasuk 0 atau negatif)
-      return daysLeft > 0 && daysLeft <= 3;
-    });
-
-    if (expiringAccounts.length > 0) {
-      newNotifications.push({
-        id: `expiring-${new Date().getDay()}`, // ID stabil per hari
-        type: "warning",
-        title: "Akun Akan Kadaluarsa",
-        message: `${expiringAccounts.length} akun akan expired dalam 3 hari`,
-        timestamp: new Date().toISOString(),
-        read: false,
+    // --- B. EXPIRING ACCOUNTS (Admin Only) ---
+    if (user.role === "admin") {
+      const expiringAccounts = accounts.filter((account: Account) => {
+        const daysLeft = getRemainingDays(account);
+        return daysLeft > 0 && daysLeft <= 3;
       });
-    }
-    // --- AKHIR PERBAIKAN ---
 
-    // Check for reported accounts (tidak berubah)
-    const reportedAccounts = getReportedAccounts(); // Getter ini sudah filter resolved=false
-    if (reportedAccounts.length > 0) {
-      newNotifications.push({
-        id: `reported-${new Date().getDay()}`, // ID stabil per hari
-        type: "error",
-        title: "Laporan Belum Selesai",
-        message: `${reportedAccounts.length} akun dilaporkan & butuh perhatian`,
-        timestamp: new Date().toISOString(),
-        read: false,
-      });
+      if (expiringAccounts.length > 0) {
+        const id = `expiring-${now.getDate()}`;
+        rawNotifications.push({
+          id,
+          type: "warning",
+          title: "Akun Akan Expired",
+          message: `${expiringAccounts.length} akun akan mati dalam 3 hari`,
+          timestamp: now.toISOString(),
+          read: isRead(id),
+        });
+      }
     }
 
-    // Update notifications (logika menghindari duplikat disederhanakan)
-    setNotifications((prevNotifications) => {
-      const incomingNotifMap = new Map(newNotifications.map((n) => [n.id, n]));
-      const prevFiltered = prevNotifications.filter(
-        (n) => !incomingNotifMap.has(n.id)
-      );
-      const combined = [...newNotifications, ...prevFiltered];
-      // Urutkan berdasarkan timestamp terbaru
-      combined.sort(
+    // --- C. LAPORAN (Admin vs Operator) ---
+    if (user.role === "admin") {
+      const unresolvedReports = reportedAccounts.filter((r) => !r.resolved);
+      if (unresolvedReports.length > 0) {
+        const id = `admin-unresolved-${now.getDate()}-${
+          unresolvedReports.length
+        }`;
+        rawNotifications.push({
+          id,
+          type: "error",
+          title: "Laporan Masalah Baru",
+          message: `Ada ${unresolvedReports.length} akun dilaporkan & butuh tindakan.`,
+          timestamp: now.toISOString(),
+          read: isRead(id),
+        });
+      }
+    } else if (user.role === "operator") {
+      const myResolvedReports = reportedAccounts.filter((r) => {
+        const isMyReport = r.operatorName === user.username;
+        const isResolved = r.resolved === true;
+        let isRecent = false;
+        if (r.resolvedAt) {
+          const resolvedTime = new Date(r.resolvedAt).getTime();
+          const oneDayAgo = now.getTime() - 24 * 60 * 60 * 1000;
+          isRecent = resolvedTime > oneDayAgo;
+        }
+        return isMyReport && isResolved && isRecent;
+      });
+
+      myResolvedReports.forEach((report) => {
+        const id = `resolved-${report.id}`;
+        rawNotifications.push({
+          id,
+          type: "success",
+          title: "Laporan Diselesaikan",
+          message: `Akun ${report.account?.email} telah diperbaiki oleh Admin.`,
+          timestamp: report.resolvedAt
+            ? report.resolvedAt.toString()
+            : now.toISOString(),
+          read: isRead(id),
+        });
+      });
+    }
+
+    // FILTER DISMISSED: Hanya ambil yang belum di-dismiss
+    const activeNotifications = rawNotifications.filter(
+      (n) => !dismissedIds.has(n.id)
+    );
+
+    // Update State
+    setNotifications((prev) => {
+      // Sorting: Terbaru di atas
+      const sorted = [...activeNotifications].sort(
         (a, b) =>
           new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime()
       );
-      return combined.slice(0, 20); // Batasi 20 notifikasi
+      return sorted;
     });
   }, [
     accounts,
+    reportedAccounts,
+    user,
     getAvailableProfileCount,
-    getReportedAccounts,
     getRemainingDays,
-  ]); // Tambah getRemainingDays dependency
+    readIds,
+    dismissedIds,
+    isInitialized,
+  ]);
 
   const unreadCount = notifications.filter((n) => !n.read).length;
 
+  // --- HANDLERS ---
+
+  const updateReadStorage = (newSet: Set<string>) => {
+    setReadIds(newSet);
+    localStorage.setItem(
+      "read_notifications",
+      JSON.stringify(Array.from(newSet))
+    );
+  };
+
+  const updateDismissedStorage = (newSet: Set<string>) => {
+    setDismissedIds(newSet);
+    localStorage.setItem(
+      "dismissed_notifications",
+      JSON.stringify(Array.from(newSet))
+    );
+  };
+
   const markAsRead = (id: string) => {
+    const newSet = new Set(readIds);
+    newSet.add(id);
+    updateReadStorage(newSet);
+
     setNotifications((prev) =>
       prev.map((n) => (n.id === id ? { ...n, read: true } : n))
     );
   };
+
   const markAllAsRead = () => {
+    const newSet = new Set(readIds);
+    notifications.forEach((n) => newSet.add(n.id));
+    updateReadStorage(newSet);
+
     setNotifications((prev) => prev.map((n) => ({ ...n, read: true })));
   };
+
   const removeNotification = (id: string) => {
+    // 1. Hapus dari UI
     setNotifications((prev) => prev.filter((n) => n.id !== id));
+
+    // 2. Simpan ke Dismissed Storage agar tidak muncul lagi saat refresh
+    const newSet = new Set(dismissedIds);
+    newSet.add(id);
+    updateDismissedStorage(newSet);
   };
 
-  // Fungsi getIcon dan formatTime (tidak berubah)
   const getIcon = (type: string) => {
     switch (type) {
       case "warning":
@@ -162,20 +263,24 @@ export default function NotificationSystem() {
         return <Info className="h-4 w-4 text-blue-500" />;
     }
   };
+
   const formatTime = (timestamp: string) => {
-    const date = new Date(timestamp);
-    const now = new Date();
-    const diffMs = now.getTime() - date.getTime();
-    const diffMins = Math.floor(diffMs / 60000);
-    const diffHours = Math.floor(diffMins / 60);
-    const diffDays = Math.floor(diffHours / 24);
-    if (diffMins < 1) return "Just now";
-    if (diffMins < 60) return `${diffMins}m ago`;
-    if (diffHours < 24) return `${diffHours}h ago`;
-    return `${diffDays}d ago`;
+    try {
+      const date = new Date(timestamp);
+      const now = new Date();
+      const diffMs = now.getTime() - date.getTime();
+      const diffMins = Math.floor(diffMs / 60000);
+      const diffHours = Math.floor(diffMins / 60);
+      const diffDays = Math.floor(diffHours / 24);
+      if (diffMins < 1) return "Baru saja";
+      if (diffMins < 60) return `${diffMins}m lalu`;
+      if (diffHours < 24) return `${diffHours}j lalu`;
+      return `${diffDays}h lalu`;
+    } catch {
+      return "-";
+    }
   };
 
-  // JSX (tidak berubah)
   return (
     <Popover open={isOpen} onOpenChange={setIsOpen}>
       <PopoverTrigger asChild>
@@ -183,71 +288,75 @@ export default function NotificationSystem() {
           <Bell className="h-5 w-5" />
           {unreadCount > 0 && (
             <Badge className="absolute -top-1 -right-1 h-5 w-5 rounded-full p-0 flex items-center justify-center bg-red-500 text-white text-xs">
-              {" "}
-              {unreadCount > 9 ? "9+" : unreadCount}{" "}
+              {unreadCount > 9 ? "9+" : unreadCount}
             </Badge>
           )}
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-80 p-0" align="end">
         <Card className="border-0 shadow-lg">
-          <CardHeader className="pb-3">
+          <CardHeader className="pb-3 border-b">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-lg">Notifications</CardTitle>
+              <CardTitle className="text-base font-bold">Notifikasi</CardTitle>
               {unreadCount > 0 && (
                 <Button
                   variant="ghost"
                   size="sm"
                   onClick={markAllAsRead}
-                  className="text-xs"
+                  className="text-xs h-auto py-1 px-2"
                 >
-                  Mark all read
+                  Tandai semua dibaca
                 </Button>
               )}
             </div>
           </CardHeader>
           <CardContent className="p-0">
             {notifications.length === 0 ? (
-              <div className="p-4 text-center text-gray-500">
-                <Bell className="h-8 w-8 mx-auto mb-2 opacity-50" />
-                <p>No notifications</p>
+              <div className="p-6 text-center text-gray-500">
+                <Bell className="h-8 w-8 mx-auto mb-2 opacity-30" />
+                <p className="text-sm">Tidak ada notifikasi baru</p>
               </div>
             ) : (
-              <div className="max-h-96 overflow-y-auto">
+              <div className="max-h-80 overflow-y-auto">
                 {notifications.map((notification) => (
                   <div
                     key={notification.id}
-                    className={`p-3 border-b border-gray-100 hover:bg-gray-50 cursor-pointer ${
-                      !notification.read ? "bg-blue-50" : ""
+                    className={`p-3 border-b border-gray-50 hover:bg-gray-50 cursor-pointer transition-colors ${
+                      !notification.read ? "bg-blue-50/60" : "bg-white"
                     }`}
                     onClick={() => markAsRead(notification.id)}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start space-x-2 flex-1">
-                        {getIcon(notification.type)}
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">
-                            {notification.title}
-                          </p>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {notification.message}
-                          </p>
-                          <div className="flex items-center mt-1">
-                            <Clock className="h-3 w-3 text-gray-400 mr-1" />
-                            <span className="text-xs text-gray-400">
-                              {formatTime(notification.timestamp)}
-                            </span>
-                          </div>
+                    <div className="flex items-start gap-3">
+                      <div className="mt-1">{getIcon(notification.type)}</div>
+                      <div className="flex-1 min-w-0">
+                        <p
+                          className={`text-sm ${
+                            !notification.read
+                              ? "font-bold text-gray-900"
+                              : "font-medium text-gray-700"
+                          } truncate`}
+                        >
+                          {notification.title}
+                        </p>
+                        <p className="text-xs text-gray-600 mt-0.5 line-clamp-2">
+                          {notification.message}
+                        </p>
+                        <div className="flex items-center mt-1.5">
+                          <Clock className="h-3 w-3 text-gray-400 mr-1" />
+                          <span className="text-[10px] text-gray-400">
+                            {formatTime(notification.timestamp)}
+                          </span>
                         </div>
                       </div>
                       <Button
                         variant="ghost"
-                        size="sm"
+                        size="icon"
                         onClick={(e) => {
                           e.stopPropagation();
                           removeNotification(notification.id);
                         }}
-                        className="h-6 w-6 p-0 hover:bg-gray-200"
+                        className="h-6 w-6 p-0 text-gray-400 hover:text-red-500 hover:bg-transparent"
+                        title="Hapus Notifikasi"
                       >
                         <X className="h-3 w-3" />
                       </Button>

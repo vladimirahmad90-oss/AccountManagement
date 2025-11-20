@@ -479,28 +479,45 @@ export class DatabaseService {
   }
   static async resolveReport(reportId: string, newPassword?: string) {
     if (!reportId) throw new Error("Report ID is required.");
+
     return prisma.$transaction(async (tx) => {
       const report = await tx.reportedAccount.findUnique({
         where: { id: reportId },
         select: { accountId: true, resolved: true },
       });
+
       if (!report) throw new Error(`Report ${reportId} not found.`);
+
       if (report.resolved) {
         console.warn(`Report ${reportId} already resolved.`);
         return;
       }
+
+      // --- UPDATE DI SINI ---
       await tx.reportedAccount.update({
         where: { id: reportId },
-        data: { resolved: true },
+        data: {
+          resolved: true,
+          resolvedAt: new Date(), // <--- PENTING: Catat waktu penyelesaian!
+        },
       });
+      // --- AKHIR UPDATE ---
+
       const accountUpdateData: Prisma.AccountUpdateInput = { reported: false };
-      if (newPassword) accountUpdateData.password = newPassword;
+
+      if (newPassword) {
+        accountUpdateData.password = newPassword;
+      }
+
       await tx.account.update({
         where: { id: report.accountId },
         data: accountUpdateData,
       });
+
       console.log(
-        `Report ${reportId} resolved. Account ${report.accountId} updated.`
+        `Report ${reportId} resolved at ${new Date().toISOString()}. Account ${
+          report.accountId
+        } updated.`
       );
     });
   }

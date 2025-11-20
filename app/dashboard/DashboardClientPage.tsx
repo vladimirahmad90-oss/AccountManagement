@@ -4,17 +4,17 @@ import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DashboardHeader } from "@/components/dashboard/dashboard-header";
 import DashboardTabs from "@/components/dashboard/dashboard-tabs";
+// Import komponen baru OperatorDashboard
+import OperatorDashboard from "@/components/dashboard/operator-dashboard";
 import { AccountProvider } from "@/contexts/account-context";
 import LoadingSpinner from "@/components/shared/loading-spinner";
-import { PLATFORM_LIST } from "@/lib/constants";
 
 export default function DashboardClientPage() {
   const router = useRouter();
   const [isAuthenticated, setIsAuthenticated] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [selectedPlatform, setSelectedPlatform] = useState<string>(
-    PLATFORM_LIST[0].key
-  );
+  // State untuk menyimpan role user
+  const [userRole, setUserRole] = useState<"admin" | "operator" | null>(null);
 
   useEffect(() => {
     const currentUser = localStorage.getItem("currentUser");
@@ -29,6 +29,7 @@ export default function DashboardClientPage() {
 
       if (user && user.username && user.role) {
         setIsAuthenticated(true);
+        setUserRole(user.role); // Simpan role user
       } else {
         localStorage.removeItem("currentUser");
         router.push("/");
@@ -61,17 +62,24 @@ export default function DashboardClientPage() {
           style={{ animationDelay: "3s" }}
         ></div>
 
+        {/* Header tetap ada untuk kedua role (untuk Logout & Refresh) */}
         <DashboardHeader />
+
         <main className="container mx-auto py-8 px-4 relative z-10">
+          {/* Judul Dashboard */}
           <div className="mb-8 text-center">
             <h1 className="text-4xl font-bold gradient-text mb-2">
               TrustDigital.ID
             </h1>
             <p className="text-xl text-gray-600 dark:text-gray-300">
-              Account Management Dashboard
+              {userRole === "admin"
+                ? "Administrator Panel"
+                : "Operator Workspace"}
             </p>
           </div>
-          <DashboardTabs />
+
+          {/* LOGIC SWITCHING TAMPILAN BERDASARKAN ROLE */}
+          {userRole === "admin" ? <DashboardTabs /> : <OperatorDashboard />}
         </main>
       </div>
     </AccountProvider>
