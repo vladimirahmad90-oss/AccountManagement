@@ -8,11 +8,12 @@ export function cn(...inputs: ClassValue[]) {
 }
 
 /**
- * Generate profiles dengan dukungan Custom Count
+ * Generate profiles dengan nama Looping (A-E)
+ * Logic: A, B, C, D, E, A, B, C ...
  */
 export function generateProfiles(
   type: AccountType,
-  customCount?: number // <--- Parameter Baru
+  customCount?: number
 ): { profile: string; pin: string; used: boolean }[] {
   interface Profile {
     profile: string;
@@ -26,6 +27,7 @@ export function generateProfiles(
     vip: 6,
   };
 
+  // Gunakan custom count atau default
   const count = customCount ?? profileCounts[type] ?? 0;
 
   const pins = [
@@ -41,12 +43,18 @@ export function generateProfiles(
     "0000",
   ];
 
-  const profiles: Profile[] = Array.from({ length: count }).map((_, i) => ({
-    profile: `Profile ${String.fromCharCode(65 + i)}`, // A, B, C...
-    pin: pins[i % pins.length],
-    used: false,
-  }));
+  const profiles: Profile[] = Array.from({ length: count }).map((_, i) => {
+    const letterCode = 65 + (i % 5);
+    const letter = String.fromCharCode(letterCode);
 
+    return {
+      profile: `Profile ${letter}`,
+      pin: pins[i % pins.length],
+      used: false,
+    };
+  });
+
+  // Acak urutan array profiles sebelum dikembalikan (Opsional, biar yang dapet A gak selalu orang pertama)
   return [...profiles].sort(() => Math.random() - 0.5);
 }
 
