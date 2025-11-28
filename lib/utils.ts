@@ -7,10 +7,6 @@ export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }
 
-/**
- * Generate profiles dengan nama Looping (A-E)
- * Logic: A, B, C, D, E, A, B, C ...
- */
 export function generateProfiles(
   type: AccountType,
   customCount?: number
@@ -27,35 +23,24 @@ export function generateProfiles(
     vip: 6,
   };
 
-  // Gunakan custom count atau default
   const count = customCount ?? profileCounts[type] ?? 0;
 
-  const pins = [
-    "1111",
-    "2222",
-    "3333",
-    "4444",
-    "5555",
-    "6666",
-    "7777",
-    "8888",
-    "9999",
-    "0000",
-  ];
+  const pins = ["1111", "2222", "3333", "4444", "5555"];
 
   const profiles: Profile[] = Array.from({ length: count }).map((_, i) => {
-    const letterCode = 65 + (i % 5);
+    const indexLoop = i % 5;
+
+    const letterCode = 65 + indexLoop;
     const letter = String.fromCharCode(letterCode);
 
     return {
       profile: `Profile ${letter}`,
-      pin: pins[i % pins.length],
+      pin: pins[indexLoop],
       used: false,
     };
   });
 
-  // Acak urutan array profiles sebelum dikembalikan (Opsional, biar yang dapet A gak selalu orang pertama)
-  return [...profiles].sort(() => Math.random() - 0.5);
+  return profiles;
 }
 
 export function formatDate(
